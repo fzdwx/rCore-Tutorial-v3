@@ -8,16 +8,18 @@
 //! We then call [`println!`] to display `Hello, world!`.
 
 #![deny(missing_docs)]
-#![deny(warnings)]
 #![no_std]
 #![no_main]
 #![feature(panic_info_message)]
+#![feature(default_alloc_error_handler)]
 
 use core::arch::global_asm;
+use log::{debug, error, info, trace};
 
 #[macro_use]
 mod console;
 mod lang_items;
+mod logging;
 mod sbi;
 
 #[path = "boards/qemu.rs"]
@@ -50,18 +52,22 @@ pub fn rust_main() -> ! {
         fn boot_stack_top(); // stack top
     }
     clear_bss();
-    println!("Hello, world!");
-    println!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
-    println!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
-    println!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);
-    println!(
+    logging::init().unwrap();
+
+    info!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
+    info!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
+    info!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);
+    info!(
         "boot_stack top=bottom={:#x}, lower_bound={:#x}",
         boot_stack_top as usize, boot_stack_lower_bound as usize
     );
-    println!(".bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
+    info!(".bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
+
+    error!("Hello, world!");
+    debug!("Hello, world!");
+    trace!("Hello, world!");
 
     use crate::board::QEMUExit;
     crate::board::QEMU_EXIT_HANDLE.exit_success(); // CI autotest success
                                                    //crate::board::QEMU_EXIT_HANDLE.exit_failure(); // CI autoest failed
-
 }
