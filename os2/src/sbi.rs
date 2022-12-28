@@ -16,6 +16,7 @@ pub fn console_putchar(c: usize) {
     sbi_call(SBI_CONSOLE_PUTCHAR, c, 0, 0);
 }
 
+// quick call for console_putchar
 pub fn putchar(c: char) {
     console_putchar(c as usize);
 }
