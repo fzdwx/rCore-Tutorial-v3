@@ -54,6 +54,8 @@ pub fn rust_main() -> ! {
     clear_bss();
     logging::init().unwrap();
 
+    print_color!("this is print color marco", 31);
+
     info!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
     info!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
     info!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);

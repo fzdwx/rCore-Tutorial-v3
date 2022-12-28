@@ -22,6 +22,14 @@ pub fn init() -> Result<(), SetLoggerError> {
     })
 }
 
+/// print color
+#[macro_export]
+macro_rules! print_color {
+    ($fmt:expr,$code:expr) => {
+        println!("\x1b[{}m{}\x1b[0m", $code, $fmt);
+    };
+}
+
 impl log::Log for SimpleLogger {
     fn enabled(&self, _metadata: &Metadata) -> bool {
         // metadata.level() <= Level::Info
@@ -32,12 +40,9 @@ impl log::Log for SimpleLogger {
         if !self.enabled(record.metadata()) {
             return;
         }
-
-        println!(
-            "\x1b[{}m{} - {}\x1b[0m",
-            map(record.level()),
-            record.level(),
-            record.args()
+        print_color!(
+            format_args!("[{:>5}]{}", record.level(), record.args()),
+            map(record.level())
         );
     }
 
