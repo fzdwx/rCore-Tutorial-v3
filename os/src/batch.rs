@@ -4,7 +4,7 @@ use core::arch::asm;
 use lazy_static::*;
 use log::info;
 
-const USER_STACK_SIZE: usize = 4096 * 2;
+const USER_STACK_SIZE: usize = 4096;
 const KERNEL_STACK_SIZE: usize = 4096 * 2;
 const MAX_APP_NUM: usize = 16;
 const APP_BASE_ADDRESS: usize = 0x80400000;
@@ -110,6 +110,10 @@ lazy_static! {
             }
         })
     };
+}
+
+pub fn get_app_memory_range() -> (usize, usize) {
+    (APP_BASE_ADDRESS, APP_BASE_ADDRESS + APP_SIZE_LIMIT)
 }
 
 pub fn init() {
