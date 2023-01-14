@@ -31,12 +31,15 @@ mod console;
 mod config;
 mod lang_items;
 mod loader;
+mod logging;
 mod sbi;
 mod sync;
 pub mod syscall;
 pub mod task;
 mod timer;
 pub mod trap;
+
+use log::info;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
@@ -57,7 +60,8 @@ fn clear_bss() {
 #[no_mangle]
 pub fn rust_main() -> ! {
     clear_bss();
-    println!("[kernel] Hello, world!");
+    logging::init().unwrap();
+    info!("[kernel] Hello, world!");
     trap::init();
     loader::load_apps();
     trap::enable_timer_interrupt();
