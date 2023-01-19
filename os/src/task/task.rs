@@ -10,7 +10,7 @@ pub struct TaskControlBlock {
     pub kernel_end: usize, // 内核态结束时间
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum TaskStatus {
     UnInit,
     Ready,

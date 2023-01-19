@@ -1,7 +1,14 @@
 //! Process management syscalls
 use crate::task::{exit_current_and_run_next, suspend_current_and_run_next};
-use crate::timer::get_time;
+use crate::timer::{get_time, get_time_ms};
 use log::info;
+
+#[repr(C)]
+#[derive(Debug, Default)]
+pub struct TimeVal {
+    pub sec: usize,
+    pub usec: usize,
+}
 
 /// task exits and submit an exit code
 pub fn sys_exit(exit_code: i32) -> ! {
@@ -18,7 +25,7 @@ pub fn sys_yield() -> isize {
 
 /// get time in milliseconds
 pub fn sys_get_time() -> isize {
-    get_time() as isize
+    get_time_ms() as isize
 }
 
 pub fn sys_mark_prev_kernel_end() -> isize {
