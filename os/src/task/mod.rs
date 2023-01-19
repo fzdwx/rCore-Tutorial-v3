@@ -19,7 +19,7 @@ use crate::config::MAX_APP_NUM;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
-use log::debug;
+use log::{debug, trace};
 use task::{TaskControlBlock, TaskStatus};
 
 use crate::task::switch::switch__;
@@ -113,7 +113,10 @@ impl TaskManager {
     pub fn mark_prev_kernel_end(&self) {
         let mut inner = self.inner.exclusive_access();
         let prev = inner.prev_task;
-        inner.tasks[prev].kernel_end = get_time();
+        if inner.tasks[prev].task_status == TaskStatus::Exited {
+            inner.tasks[prev].kernel_end = get_time();
+            trace!("[Kernel] Task kernel {} end", prev);
+        }
     }
 
     /// mark_user_end
@@ -121,6 +124,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].user_end = get_time();
+        trace!("[Kernel] Task {} user end", current);
     }
 
     /// Find next task to run and return task id.
