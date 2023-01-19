@@ -19,9 +19,11 @@ use crate::config::MAX_APP_NUM;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
-use switch::__switch;
+use log::debug;
 use task::{TaskControlBlock, TaskStatus};
 
+use crate::task::switch::switch__;
+use crate::timer::get_time;
 pub use context::TaskContext;
 
 /// The task manager, where all the tasks are managed.
@@ -46,6 +48,7 @@ pub struct TaskManagerInner {
     tasks: [TaskControlBlock; MAX_APP_NUM],
     /// id of current `Running` task
     current_task: usize,
+    prev_end_task: usize,
 }
 
 lazy_static! {
@@ -55,9 +58,11 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            user_end: 0,
+            kernel_end: 0,
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
-            task.task_cx = TaskContext::goto_restore(init_app_cx(i));
+            task.task_cx = TaskContext::goto_restore(init_app_cx(i),i as i64);
             task.task_status = TaskStatus::Ready;
         }
         TaskManager {
@@ -66,6 +71,7 @@ lazy_static! {
                 UPSafeCell::new(TaskManagerInner {
                     tasks,
                     current_task: 0,
+                    prev_end_task: 0,
                 })
             },
         }
@@ -85,9 +91,7 @@ impl TaskManager {
         drop(inner);
         let mut _unused = TaskContext::zero_init();
         // before this, we should drop local variables that must be dropped manually
-        unsafe {
-            __switch(&mut _unused as *mut TaskContext, next_task_cx_ptr);
-        }
+        switch__(&mut _unused as *mut TaskContext, next_task_cx_ptr);
         panic!("unreachable in run_first_task!");
     }
 
@@ -103,6 +107,14 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status = TaskStatus::Exited;
+        inner.tasks[current].user_end = get_time();
+    }
+
+    /// Mark prev task kernel end time
+    pub fn mark_prev_kernel_end(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let prev = inner.prev_end_task;
+        inner.tasks[prev].kernel_end = get_time();
     }
 
     /// Find next task to run and return task id.
@@ -122,20 +134,40 @@ impl TaskManager {
         if let Some(next) = self.find_next_task() {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
+            if inner.tasks[current].task_status == TaskStatus::Exited {
+                inner.prev_end_task = current;
+            }
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
             drop(inner);
             // before this, we should drop local variables that must be dropped manually
-            unsafe {
-                __switch(current_task_cx_ptr, next_task_cx_ptr);
-            }
+            switch__(current_task_cx_ptr, next_task_cx_ptr);
             // go back to user mode
         } else {
-            println!("All applications completed!");
+            let mut inner = self.inner.exclusive_access();
+            let current = inner.current_task;
+            inner.tasks[current].kernel_end = get_time(); // the last task
+            debug!("All applications completed!");
+            inner.show_end_time();
             use crate::board::QEMUExit;
             crate::board::QEMU_EXIT_HANDLE.exit_success();
+        }
+    }
+}
+
+impl TaskManagerInner {
+    /// Show task end time
+    fn show_end_time(&self) {
+        for block in self.tasks {
+            debug!(
+                "Task {} user end time: {},kernel end time {} | switch cost: {}",
+                block.task_cx.get_app_id(),
+                block.user_end,
+                block.kernel_end,
+                block.kernel_end - block.user_end
+            );
         }
     }
 }

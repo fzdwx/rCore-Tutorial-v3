@@ -20,3 +20,8 @@ pub fn sys_yield() -> isize {
 pub fn sys_get_time() -> isize {
     get_time_ms() as isize
 }
+
+pub fn sys_mark_prev_kernel_end() -> isize {
+    crate::task::TASK_MANAGER.mark_prev_kernel_end();
+    0
+}
