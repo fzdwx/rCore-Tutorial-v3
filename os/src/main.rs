@@ -68,3 +68,9 @@ pub fn rust_main() -> ! {
     task::run_first_task();
     panic!("Unreachable in rust_main!");
 }
+
+#[no_mangle]
+/// mark_prev_kernel_end
+pub fn mark_prev_kernel_end() {
+    crate::task::TASK_MANAGER.mark_prev_kernel_end();
+}

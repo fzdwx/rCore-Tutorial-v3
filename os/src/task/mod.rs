@@ -48,7 +48,7 @@ pub struct TaskManagerInner {
     tasks: [TaskControlBlock; MAX_APP_NUM],
     /// id of current `Running` task
     current_task: usize,
-    prev_end_task: usize,
+    prev_task: usize,
 }
 
 lazy_static! {
@@ -71,7 +71,7 @@ lazy_static! {
                 UPSafeCell::new(TaskManagerInner {
                     tasks,
                     current_task: 0,
-                    prev_end_task: 0,
+                    prev_task: 0,
                 })
             },
         }
@@ -107,14 +107,20 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status = TaskStatus::Exited;
-        inner.tasks[current].user_end = get_time();
     }
 
     /// Mark prev task kernel end time
     pub fn mark_prev_kernel_end(&self) {
         let mut inner = self.inner.exclusive_access();
-        let prev = inner.prev_end_task;
+        let prev = inner.prev_task;
         inner.tasks[prev].kernel_end = get_time();
+    }
+
+    /// mark_user_end
+    pub fn mark_user_end(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].user_end = get_time();
     }
 
     /// Find next task to run and return task id.
@@ -134,9 +140,7 @@ impl TaskManager {
         if let Some(next) = self.find_next_task() {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
-            if inner.tasks[current].task_status == TaskStatus::Exited {
-                inner.prev_end_task = current;
-            }
+            inner.prev_task = current;
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;

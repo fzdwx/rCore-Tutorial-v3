@@ -10,9 +10,10 @@ mod syscall;
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
-    mark_prev_kernel_end();
     clear_bss();
-    exit(main());
+    let exit_code = main();
+    sys_mark_user_end_time();
+    exit(exit_code);
     panic!("unreachable after sys_exit!");
 }
 
@@ -45,7 +46,4 @@ pub fn yield_() -> isize {
 }
 pub fn get_time() -> isize {
     sys_get_time()
-}
-pub fn mark_prev_kernel_end() -> isize {
-    sys_mark_prev_kernel_end()
 }
