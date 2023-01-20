@@ -1,5 +1,5 @@
 //! Process management syscalls
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next};
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, TaskInfo};
 use crate::timer::get_time_ms;
 use log::info;
 
@@ -21,6 +21,14 @@ pub fn sys_get_time() -> isize {
     get_time_ms() as isize
 }
 
+/// get task info
+/// id: task id(app id)
+/// info: task info
+pub fn sys_task_info(id: usize, ts: *mut TaskInfo) -> isize {
+    0
+}
+
+/// mark the end of the previous kernel
 pub fn sys_mark_prev_kernel_end() -> isize {
     crate::task::TASK_MANAGER.mark_prev_kernel_end();
     0

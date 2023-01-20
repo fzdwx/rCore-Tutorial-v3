@@ -20,11 +20,13 @@ use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
 use log::debug;
-use task::{TaskControlBlock, TaskStatus};
+use task::TaskStatus;
 
 use crate::task::switch::switch__;
+use crate::task::task::TaskControlBlock;
 use crate::timer::get_time;
 pub use context::TaskContext;
+pub use task::TaskInfo;
 
 /// The task manager, where all the tasks are managed.
 ///
@@ -60,8 +62,11 @@ lazy_static! {
             task_status: TaskStatus::UnInit,
             user_end: 0,
             kernel_end: 0,
+            time_start: 0,
+            id :0,
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
+            task.id = i;
             task.task_cx = TaskContext::goto_restore(init_app_cx(i),i as i64);
             task.task_status = TaskStatus::Ready;
         }
