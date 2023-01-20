@@ -33,7 +33,7 @@ pub struct TaskInfo {
 #[derive(Copy, Clone)]
 pub struct SyscallInfo {
     pub id: usize,
-    times: usize,
+    pub times: usize,
 }
 
 impl TaskControlBlock {

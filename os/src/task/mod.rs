@@ -64,6 +64,10 @@ lazy_static! {
             kernel_end: 0,
             time_start: 0,
             id :0,
+            call: [crate::task::task::SyscallInfo {
+                id: 0,
+                times: 0,
+            }; crate::config::MAX_SYSCALL_NUM],
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.id = i;

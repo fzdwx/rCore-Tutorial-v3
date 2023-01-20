@@ -20,7 +20,7 @@ const SYSCALL_MARK_PREV_KERNEL_END: usize = 444;
 mod fs;
 mod process;
 
-use crate::task::TaskControlBlock;
+use crate::task::TaskInfo;
 use fs::*;
 use process::*;
 
@@ -31,7 +31,7 @@ pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
         SYSCALL_EXIT => sys_exit(args[0] as i32),
         SYSCALL_YIELD => sys_yield(),
         SYSCALL_GET_TIME => sys_get_time(),
-        SYSCALL_TASK_INFO => sys_task_info(args[0], args[1] as *mut TaskControlBlock),
+        SYSCALL_TASK_INFO => sys_task_info(args[0], args[1] as *mut TaskInfo),
         SYSCALL_MARK_PREV_KERNEL_END => sys_mark_prev_kernel_end(),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
