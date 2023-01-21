@@ -19,7 +19,7 @@ use crate::config::MAX_APP_NUM;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
-use log::debug;
+use log::{debug, trace};
 use task::TaskStatus;
 
 use crate::task::switch::switch__;
@@ -97,6 +97,7 @@ impl TaskManager {
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
+        task0.time_start = get_time(); // mark start
         drop(inner);
         let mut _unused = TaskContext::zero_init();
         // before this, we should drop local variables that must be dropped manually
@@ -126,6 +127,27 @@ impl TaskManager {
         inner.tasks[prev].kernel_end = get_time();
     }
 
+    pub fn add_syscall_times(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].call[syscall_id].times += 1;
+        inner.tasks[current].call[syscall_id].id = syscall_id;
+        trace!(
+            "Task:{} add times:{} - {}",
+            current,
+            syscall_id,
+            inner.tasks[current].call[syscall_id].times
+        );
+    }
+
+    pub fn get_task_id(&self, task_id: usize) -> Option<TaskInfo> {
+        self.inner
+            .exclusive_access()
+            .tasks
+            .get(task_id)
+            .map(|block| block.to_task_info())
+    }
+
     /// Find next task to run and return task id.
     ///
     /// In this case, we only return the first `Ready` task in task list.
@@ -150,6 +172,9 @@ impl TaskManager {
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
+            if inner.tasks[next].time_start == 0 {
+                inner.tasks[next].time_start = get_time(); // mark start
+            }
             drop(inner);
             // before this, we should drop local variables that must be dropped manually
             switch__(current_task_cx_ptr, next_task_cx_ptr);

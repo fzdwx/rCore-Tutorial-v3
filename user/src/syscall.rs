@@ -1,10 +1,65 @@
 use core::arch::asm;
 
-const SYSCALL_WRITE: usize = 64;
-const SYSCALL_EXIT: usize = 93;
-const SYSCALL_YIELD: usize = 124;
-const SYSCALL_GET_TIME: usize = 169;
-const SYSCALL_MARK_PREV_KERNEL_END: usize = 444;
+const SYSCALL_WRITE: usize = 1;
+const SYSCALL_EXIT: usize = 2;
+const SYSCALL_YIELD: usize = 3;
+const SYSCALL_GET_TIME: usize = 4;
+const SYSCALL_TASK_INFO: usize = 5;
+const SYSCALL_MARK_PREV_KERNEL_END: usize = 6;
+pub const MAX_SYSCALL_NUM: usize = 7;
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct TaskInfo {
+    pub id: usize,
+    pub status: TaskStatus,
+    pub call: [SyscallInfo; MAX_SYSCALL_NUM],
+    pub time: usize,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct SyscallInfo {
+    pub id: usize,
+    pub times: usize,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum TaskStatus {
+    UnInit,
+    Ready,
+    Running,
+    Exited,
+}
+
+impl TaskInfo {
+    pub fn new() -> Self {
+        Self {
+            id: 0,
+            status: TaskStatus::UnInit,
+            call: [SyscallInfo::new(); MAX_SYSCALL_NUM],
+            time: 0,
+        }
+    }
+    pub fn print(&self) {
+        println!("Task {}:", self.id);
+        println!("  Status: {:?}", self.status);
+        println!("  Time: {} ms", self.time);
+        println!("  Syscall:");
+        for i in 0..MAX_SYSCALL_NUM {
+            if self.call[i].times != 0 {
+                println!("    {}: {} times", self.call[i].id, self.call[i].times);
+            }
+        }
+    }
+}
+
+impl SyscallInfo {
+    pub fn new() -> Self {
+        Self { id: 0, times: 0 }
+    }
+}
 
 fn syscall(id: usize, args: [usize; 3]) -> isize {
     let mut ret: isize;
@@ -38,4 +93,8 @@ pub fn sys_get_time() -> isize {
 
 pub fn sys_mark_prev_kernel_end() -> isize {
     syscall(SYSCALL_MARK_PREV_KERNEL_END, [0, 0, 0])
+}
+
+pub fn sys_task_info(id: usize, ts: *mut TaskInfo) -> isize {
+    syscall(SYSCALL_TASK_INFO, [id, ts as usize, 0])
 }

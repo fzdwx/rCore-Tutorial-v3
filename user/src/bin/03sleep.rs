@@ -4,7 +4,7 @@
 #[macro_use]
 extern crate user_lib;
 
-use user_lib::{get_time, yield_};
+use user_lib::{get_time, task_info, yield_};
 
 #[no_mangle]
 fn main() -> i32 {
@@ -13,6 +13,9 @@ fn main() -> i32 {
     while get_time() < wait_for {
         yield_();
     }
-    println!("Test sleep OK!");
+    task_info(0).print();
+    task_info(1).print();
+    task_info(2).print();
+    task_info(3).print();
     0
 }

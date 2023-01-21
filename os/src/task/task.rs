@@ -2,6 +2,8 @@
 
 use super::TaskContext;
 use crate::config::MAX_SYSCALL_NUM;
+use crate::timer::get_time;
+use log::error;
 
 #[derive(Copy, Clone)]
 pub struct TaskControlBlock {
@@ -14,7 +16,8 @@ pub struct TaskControlBlock {
     pub call: [SyscallInfo; MAX_SYSCALL_NUM],
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum TaskStatus {
     UnInit,
     Ready,
@@ -22,27 +25,49 @@ pub enum TaskStatus {
     Exited,
 }
 
+#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct TaskInfo {
-    id: usize,
-    status: TaskStatus,
-    call: [SyscallInfo; MAX_SYSCALL_NUM],
-    time: usize,
+    pub id: usize,
+    pub status: TaskStatus,
+    pub call: [SyscallInfo; MAX_SYSCALL_NUM],
+    pub time: usize,
 }
 
+#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct SyscallInfo {
     pub id: usize,
     pub times: usize,
 }
 
+impl TaskInfo {
+    pub fn print(&self) {
+        error!("Task {}:", self.id);
+        error!("  Status: {:?}", self.status);
+        error!("  Time: {} ms", self.time);
+        error!("  Syscall:");
+        for i in 0..MAX_SYSCALL_NUM {
+            if self.call[i].times != 0 {
+                error!("    {}: {} times", self.call[i].id, self.call[i].times);
+            }
+        }
+    }
+}
+
 impl TaskControlBlock {
     pub fn to_task_info(&self) -> TaskInfo {
-        TaskInfo {
+        let time = match self.task_status {
+            TaskStatus::Exited => self.user_end - self.time_start,
+            _ => get_time() - self.time_start,
+        };
+
+        let info = TaskInfo {
             id: self.id,
             status: self.task_status,
             call: self.call,
-            time: self.kernel_end - self.time_start,
-        }
+            time,
+        };
+        info
     }
 }
