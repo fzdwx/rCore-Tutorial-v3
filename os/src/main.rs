@@ -15,8 +15,6 @@
 //! We then call [`task::run_first_task()`] and for the first time go to
 //! userspace.
 
-#![deny(missing_docs)]
-#![deny(warnings)]
 #![no_std]
 #![no_main]
 #![feature(panic_info_message)]
@@ -35,6 +33,7 @@ mod console;
 mod config;
 mod lang_items;
 mod loader;
+mod logging;
 mod mm;
 mod sbi;
 mod sync;
@@ -45,6 +44,8 @@ pub mod trap;
 
 core::arch::global_asm!(include_str!("entry.asm"));
 core::arch::global_asm!(include_str!("link_app.S"));
+use crate::task::TASK_MANAGER;
+use log::info;
 
 /// clear BSS segment
 fn clear_bss() {
@@ -62,9 +63,10 @@ fn clear_bss() {
 /// the rust entry-point of os
 pub fn rust_main() -> ! {
     clear_bss();
-    println!("[kernel] Hello, world!");
+    logging::init().unwrap();
+    info!("[kernel] Hello, world!");
     mm::init();
-    println!("[kernel] back to world!");
+    info!("[kernel] back to world!");
     mm::remap_test();
     trap::init();
     //trap::enable_interrupt();
@@ -72,4 +74,9 @@ pub fn rust_main() -> ! {
     timer::set_next_trigger();
     task::run_first_task();
     panic!("Unreachable in rust_main!");
+}
+
+#[no_mangle]
+pub fn mark_prev_kernel_end() {
+    TASK_MANAGER.mark_prev_kernel_end();
 }

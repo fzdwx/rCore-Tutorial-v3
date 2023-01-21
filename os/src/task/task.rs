@@ -1,8 +1,11 @@
 //! Types related to task management
 use super::TaskContext;
+use crate::config::MAX_SYSCALL_NUM;
 use crate::config::{kernel_stack_position, TRAP_CONTEXT};
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::timer::get_time;
 use crate::trap::{trap_handler, TrapContext};
+use log::{debug, error};
 
 /// task control block structure
 pub struct TaskControlBlock {
@@ -11,6 +14,70 @@ pub struct TaskControlBlock {
     pub memory_set: MemorySet,
     pub trap_cx_ppn: PhysPageNum,
     pub base_size: usize,
+    pub user_end: usize,   // 用户态结束时间
+    pub kernel_end: usize, // 内核态结束时间
+    pub time_start: usize, // 任务开始时间
+    pub id: usize,
+    pub call: [SyscallInfo; MAX_SYSCALL_NUM],
+}
+
+impl TaskControlBlock {
+    pub(crate) fn show_end_time(&self) {
+        debug!(
+            "Task {} user end time: {},kernel end time {} | switch cost: {}",
+            self.task_cx.get_app_id(),
+            self.user_end,
+            self.kernel_end,
+            self.kernel_end - self.user_end
+        );
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct TaskInfo {
+    pub id: usize,
+    pub status: TaskStatus,
+    pub call: [SyscallInfo; MAX_SYSCALL_NUM],
+    pub time: usize,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct SyscallInfo {
+    pub id: usize,
+    pub times: usize,
+}
+
+impl TaskInfo {
+    pub fn print(&self) {
+        error!("Task {}:", self.id);
+        error!("  Status: {:?}", self.status);
+        error!("  Time: {} ms", self.time);
+        error!("  Syscall:");
+        for i in 0..MAX_SYSCALL_NUM {
+            if self.call[i].times != 0 {
+                error!("    {}: {} times", self.call[i].id, self.call[i].times);
+            }
+        }
+    }
+}
+
+impl TaskControlBlock {
+    pub fn to_task_info(&self) -> TaskInfo {
+        let time = match self.task_status {
+            TaskStatus::Exited => self.user_end - self.time_start,
+            _ => get_time() - self.time_start,
+        };
+
+        let info = TaskInfo {
+            id: self.id,
+            status: self.task_status,
+            call: self.call,
+            time,
+        };
+        info
+    }
 }
 
 impl TaskControlBlock {
@@ -37,10 +104,15 @@ impl TaskControlBlock {
         );
         let task_control_block = Self {
             task_status,
-            task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+            task_cx: TaskContext::goto_trap_return(kernel_stack_top, app_id),
             memory_set,
             trap_cx_ppn,
             base_size: user_sp,
+            user_end: 0,
+            kernel_end: 0,
+            time_start: 0,
+            id: 0,
+            call: [SyscallInfo { id: 0, times: 0 }; MAX_SYSCALL_NUM],
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();
@@ -55,7 +127,8 @@ impl TaskControlBlock {
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 /// task status: UnInit, Ready, Running, Exited
 pub enum TaskStatus {
     Ready,

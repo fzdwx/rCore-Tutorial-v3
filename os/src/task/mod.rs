@@ -19,10 +19,14 @@ use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
 use lazy_static::*;
-use switch::__switch;
-use task::{TaskControlBlock, TaskStatus};
+use log::{debug, trace};
+use task::TaskStatus;
 
+use crate::task::switch::switch__;
+use crate::task::task::TaskControlBlock;
+use crate::timer::get_time;
 pub use context::TaskContext;
+pub use task::TaskInfo;
 
 /// The task manager, where all the tasks are managed.
 ///
@@ -46,6 +50,7 @@ struct TaskManagerInner {
     tasks: Vec<TaskControlBlock>,
     /// id of current `Running` task
     current_task: usize,
+    prev_end_task: usize,
 }
 
 lazy_static! {
@@ -64,6 +69,7 @@ lazy_static! {
                 UPSafeCell::new(TaskManagerInner {
                     tasks,
                     current_task: 0,
+                    prev_end_task: 0,
                 })
             },
         }
@@ -80,12 +86,11 @@ impl TaskManager {
         let next_task = &mut inner.tasks[0];
         next_task.task_status = TaskStatus::Running;
         let next_task_cx_ptr = &next_task.task_cx as *const TaskContext;
+        next_task.time_start = get_time(); // mark start
         drop(inner);
         let mut _unused = TaskContext::zero_init();
         // before this, we should drop local variables that must be dropped manually
-        unsafe {
-            __switch(&mut _unused as *mut _, next_task_cx_ptr);
-        }
+        switch__(&mut _unused as *mut TaskContext, next_task_cx_ptr);
         panic!("unreachable in run_first_task!");
     }
 
@@ -101,6 +106,35 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let cur = inner.current_task;
         inner.tasks[cur].task_status = TaskStatus::Exited;
+        inner.tasks[cur].user_end = get_time();
+    }
+
+    /// Mark prev task kernel end time
+    pub fn mark_prev_kernel_end(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let prev = inner.prev_end_task;
+        inner.tasks[prev].kernel_end = get_time();
+    }
+
+    pub fn add_syscall_times(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].call[syscall_id].times += 1;
+        inner.tasks[current].call[syscall_id].id = syscall_id;
+        trace!(
+            "Task:{} add times:{} - {}",
+            current,
+            syscall_id,
+            inner.tasks[current].call[syscall_id].times
+        );
+    }
+
+    pub fn get_task_id(&self, task_id: usize) -> Option<TaskInfo> {
+        self.inner
+            .exclusive_access()
+            .tasks
+            .get(task_id)
+            .map(|block| block.to_task_info())
     }
 
     /// Find next task to run and return task id.
@@ -132,21 +166,38 @@ impl TaskManager {
         if let Some(next) = self.find_next_task() {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
+            if inner.tasks[current].task_status == TaskStatus::Exited {
+                inner.prev_end_task = current;
+            }
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
+            if inner.tasks[next].time_start == 0 {
+                inner.tasks[next].time_start = get_time(); // mark start
+            }
             drop(inner);
             // before this, we should drop local variables that must be dropped manually
-            unsafe {
-                __switch(current_task_cx_ptr, next_task_cx_ptr);
-            }
+            switch__(current_task_cx_ptr, next_task_cx_ptr);
             // go back to user mode
         } else {
-            println!("All applications completed!");
+            let mut inner = self.inner.exclusive_access();
+            let current = inner.current_task;
+            inner.tasks[current].kernel_end = get_time(); // the last task
+            debug!("All applications completed!");
+            inner.show_end_time();
             use crate::board::QEMUExit;
             crate::board::QEMU_EXIT_HANDLE.exit_success();
         }
+    }
+}
+
+impl TaskManagerInner {
+    /// Show task end time
+    fn show_end_time(&self) {
+        self.tasks.iter().for_each(|block| {
+            block.show_end_time();
+        });
     }
 }
 

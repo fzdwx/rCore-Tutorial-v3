@@ -20,6 +20,7 @@ use crate::task::{
 };
 use crate::timer::set_next_trigger;
 use core::arch::{asm, global_asm};
+use log::error;
 use riscv::register::{
     mtvec::TrapMode,
     scause::{self, Exception, Interrupt, Trap},
@@ -68,11 +69,11 @@ pub fn trap_handler() -> ! {
         | Trap::Exception(Exception::StorePageFault)
         | Trap::Exception(Exception::LoadFault)
         | Trap::Exception(Exception::LoadPageFault) => {
-            println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);
+            error!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);
             exit_current_and_run_next();
         }
         Trap::Exception(Exception::IllegalInstruction) => {
-            println!("[kernel] IllegalInstruction in application, kernel killed it.");
+            error!("[kernel] IllegalInstruction in application, kernel killed it.");
             exit_current_and_run_next();
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
