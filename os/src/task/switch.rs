@@ -7,7 +7,7 @@
 
 use super::TaskContext;
 use core::arch::global_asm;
-use log::debug;
+use log::trace;
 
 global_asm!(include_str!("switch.S"));
 
@@ -22,7 +22,7 @@ pub fn switch__(current_task_cx_ptr: *mut TaskContext, next_task_cx_ptr: *const 
     unsafe {
         let current = current_task_cx_ptr.as_ref().unwrap();
         let next = next_task_cx_ptr.as_ref().unwrap();
-        debug!(
+        trace!(
             "switch from {:?} to {:?}",
             current.get_app_id(),
             next.get_app_id(),

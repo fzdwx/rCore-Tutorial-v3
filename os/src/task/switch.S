@@ -30,5 +30,13 @@ __switch:
     .endr
     # restore kernel stack of next task
     ld sp, 8(a1)
+
+    addi sp, sp, -8
+    sd ra, 0(sp)
+    call mark_prev_kernel_end
+    ld ra, 0(sp)
+    addi sp, sp, 8
+
+    # return to next task
     ret
 
